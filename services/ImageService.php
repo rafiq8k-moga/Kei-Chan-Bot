@@ -27,12 +27,17 @@ class ImageService
         
         // Build query tags
         // order:random is standard for Danbooru-based boorus
-        $tags = "$tag";
+        $tags = "$tag order:random";
         
         if ($provider === 'safebooru') {
             $tags .= ' rating:general'; // Safebooru is mostly safe, but explicit rating tag helps
         } else {
-            $tags .=  ' rating:explicit';
+        $rating = (mt_rand(1, 100) <= 50)
+    ? 'questionable'
+    : 'explicit';
+
+$tags .= " rating:$rating";
+            
             // For Danbooru (NSFW), we might want explicitly questionable or explicit, 
             // or just let it be random (which includes NSFW).
             // User requested /imgnsfw -> Danbooru. 
@@ -40,7 +45,7 @@ class ImageService
         }
         
         $url = "{$baseUrl}/posts.json?" . http_build_query([
-            'tags' => $tags order:random,
+            'tags' => $tags,
             'limit' => 1,
         ]);
         
