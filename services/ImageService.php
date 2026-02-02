@@ -3,7 +3,7 @@
 class ImageService
 {
     private $config;
-    private $baseUrl = 'https://danbooru.donmai.us';
+    private $baseUrl = 'https://safebooru.donmai.us';
     
     public function __construct($config)
     {
