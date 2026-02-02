@@ -40,9 +40,8 @@ class ImageService
         }
         
         $url = "{$baseUrl}/posts.json?" . http_build_query([
-            'tags' => $tags,
+            'tags' => $tags order:random,
             'limit' => 1,
-            'random' => true,
         ]);
         
         $ch = curl_init();
