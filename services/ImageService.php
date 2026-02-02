@@ -32,6 +32,7 @@ class ImageService
         if ($provider === 'safebooru') {
             $tags .= ' rating:general'; // Safebooru is mostly safe, but explicit rating tag helps
         } else {
+            $tags .=  'rating:explicit';
             // For Danbooru (NSFW), we might want explicitly questionable or explicit, 
             // or just let it be random (which includes NSFW).
             // User requested /imgnsfw -> Danbooru. 
