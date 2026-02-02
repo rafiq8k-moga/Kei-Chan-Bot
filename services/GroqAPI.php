@@ -13,32 +13,16 @@ class GroqAPI
     }
     
     /**
-     * Chat completion with conversation history
+     * Chat completion
+     * Users should format messages as an array of ['role' => '...', 'content' => '...']
      */
-    public function chat($messages, $systemPrompt = null)
+    public function chat($messages)
     {
         $endpoint = "{$this->baseUrl}/chat/completions";
         
-        // Prepare messages
-        $formattedMessages = [];
-        
-        if ($systemPrompt) {
-            $formattedMessages[] = [
-                'role' => 'system',
-                'content' => $systemPrompt,
-            ];
-        }
-        
-        foreach ($messages as $msg) {
-            $formattedMessages[] = [
-                'role' => $msg['role'],
-                'content' => $msg['content'],
-            ];
-        }
-        
         $data = [
             'model' => $this->config['groq']['model'],
-            'messages' => $formattedMessages,
+            'messages' => $messages,
             'max_tokens' => $this->config['groq']['max_tokens'],
             'temperature' => $this->config['groq']['temperature'],
         ];

@@ -8,7 +8,7 @@ require_once __DIR__ . '/../utils/Logger.php';
 class ChatAgent
 {
     private $config;
-    private $telegramApi; // Changed from fbApi
+    private $telegramApi;
     private $groqApi;
     private $memory;
     private $logger;
@@ -18,7 +18,7 @@ class ChatAgent
     public function __construct($config)
     {
         $this->config = $config;
-        $this->telegramApi = new TelegramAPI($config); // Init TelegramAPI
+        $this->telegramApi = new TelegramAPI($config);
         $this->groqApi = new GroqAPI($config);
         $this->memory = new MemoryManager($config);
         $this->logger = new Logger($config['paths']['logs']);
@@ -46,43 +46,75 @@ class ChatAgent
                 'message' => $message,
             ]);
             
-            // Show typing indicator
+            // Show typing response
             $this->telegramApi->sendTyping($chatId);
             
-            // Load history
-            $history = $this->memory->load($chatId);
+            // 1. Load Memory
+            $this->memory->load($chatId);
             
-            // Add user message to memory
-            $this->memory->add($chatId, 'user', $message);
-            
-            // Prepare messages for Groq
+            // 2. Build Prompt
             $messages = [];
-            foreach ($history as $msg) {
-                $messages[] = [
-                    'role' => $msg['role'],
-                    'content' => $msg['content'],
-                ];
-            }
+            
+            // - Main Identity
             $messages[] = [
-                'role' => 'user',
-                'content' => $message,
+                'role' => 'system',
+                'content' => $this->systemPrompt
             ];
             
-            // Get AI response
-            $response = $this->groqApi->chat($messages, $this->systemPrompt);
+            // - Long-Term Summary (if exists)
+            $summary = $this->memory->getSummary();
+            if ($summary) {
+                $messages[] = $summary; // Already has role: system
+            }
+            
+            // - Recent History
+            $recent = $this->memory->getRecentMessages();
+            foreach ($recent as $msg) {
+                // Ensure we only pass role/content (strip timestamps if any)
+                $messages[] = [
+                    'role' => $msg['role'],
+                    'content' => $msg['content']
+                ];
+            }
+            
+            // - Current Message
+            $messages[] = [
+                'role' => 'user',
+                'content' => $message
+            ];
+            
+            // 3. Call Groq
+            $response = $this->groqApi->chat($messages);
             
             $this->logger->info("Groq response", ['response' => $response]);
             
-            // Add assistant message to memory
-            $this->memory->add($chatId, 'assistant', $response);
+            // 4. Update Memory on Success
+            $this->memory->addRecentMessage('user', $message);
+            $this->memory->addRecentMessage('assistant', $response);
+            $counter = $this->memory->incrementCounter();
             
-            // Send response to Telegram
+            // 5. Check Summarization Trigger (every 10 messages)
+            if ($counter > 0 && $counter % 10 == 0) {
+                try {
+                    $this->summarizeHistory($chatId);
+                    $this->logger->info("Summary updated for chat $chatId");
+                } catch (Exception $e) {
+                    $this->logger->error("Summarization failed: " . $e->getMessage());
+                    // Create a task to retry later or just ignore for now, don't block the user response
+                }
+            }
+            
+            // 6. Persist Memory
+            $this->memory->save();
+            
+            // 7. Send Response
             $this->telegramApi->sendMessage($chatId, $response);
             
             return true;
             
         } catch (Exception $e) {
             $this->logger->error("Chat handling failed: " . $e->getMessage());
+            $this->logger->error($e->getTraceAsString());
             
             $this->telegramApi->sendMessage(
                 $chatId, 
@@ -92,12 +124,49 @@ class ChatAgent
             return false;
         }
     }
+
+    private function summarizeHistory($chatId)
+    {
+        $recent = $this->memory->getRecentMessages();
+        if (empty($recent)) return;
+
+        // Create summarizer prompt
+        $textToSummarize = "";
+        foreach ($recent as $msg) {
+            $role = ucfirst($msg['role']);
+            $textToSummarize .= "$role: {$msg['content']}\n";
+        }
+
+        $summarizerSystemPrompt = "Ringkas percakapan berikut menjadi fakta objektif dan ringkas. " .
+            "Jangan gunakan dialog, emosi, gaya karakter, atau sudut pandang personal. " .
+            "Hanya simpan informasi yang relevan untuk kelanjutan percakapan. " .
+            "Maksimal 3-6 kalimat.";
+
+        $messages = [
+            ['role' => 'system', 'content' => $summarizerSystemPrompt],
+            ['role' => 'user', 'content' => $textToSummarize]
+        ];
+
+        // Call Groq separate from main chat
+        $summaryContent = $this->groqApi->chat($messages);
+        
+        // Update memory
+        $this->memory->setSummary($summaryContent);
+        
+        // Trim recent messages
+        // Keep the last 2 interactions (User + Assistant) for context continuity
+        // But usually we want the last 2-4 messages.
+        // Let's keep the last 4 messages to be safe.
+        $this->memory->trimRecentMessages(4);
+    }
     
     /**
      * Handle commands
      */
     public function handleCommand($chatId, $command)
     {
+        $this->memory->load($chatId);
+        
         switch (strtolower(trim($command))) {
             case '/start':
             case '/mulai':
@@ -124,8 +193,6 @@ class ChatAgent
                 break;
                 
             default:
-                // Treat unknown command as text message? Or ignore?
-                // For now, let's treat it as unknown command
                 return false;
         }
         
