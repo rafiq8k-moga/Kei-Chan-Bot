@@ -200,7 +200,7 @@ class ChatAgent
                 $imageUrl = $this->imageService->getRandomImage('safebooru');
                 
                 if ($imageUrl) {
-                    $caption = "i... ini gambar diriku";
+                    $caption = "i... ini gambar diriku\ndan juga... pemilik penghubung ini bilang ia tidak akan bertanggung jawab atas gambar yang kuberikan, kumohon pakai secara bijak";
                     $this->telegramApi->sendPhoto($chatId, $imageUrl, $caption);
                 } else {
                     $this->telegramApi->sendMessage($chatId, "Gagal mengambil gambar... Maaf ya.");
@@ -212,7 +212,7 @@ class ChatAgent
                 $imageUrl = $this->imageService->getRandomImage('danbooru');
                 
                 if ($imageUrl) {
-                    $caption = "A... anu... i... ini (malu-malu memberikan gambarnya kepadamu)";
+                    $caption = "A... anu... i... ini (malu-malu memberikan gambarnya kepadamu)\ndan juga... pemilik penghubung ini bilang ia tidak akan bertanggung jawab atas gambar yang kuberikan, kumohon pakai secara bijak";
                     $this->telegramApi->sendPhoto($chatId, $imageUrl, $caption);
                 } else {
                     $this->telegramApi->sendMessage($chatId, "Gagal mengambil gambar... Mungkin koneksinya error.");
