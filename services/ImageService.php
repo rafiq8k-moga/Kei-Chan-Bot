@@ -3,7 +3,10 @@
 class ImageService
 {
     private $config;
-    private $baseUrl = 'https://safebooru.donmai.us';
+    private $providers = [
+        'danbooru' => 'https://danbooru.donmai.us',
+        'safebooru' => 'https://safebooru.donmai.us',
+    ];
     
     public function __construct($config)
     {
@@ -11,25 +14,39 @@ class ImageService
     }
     
     /**
-     * Get random image from Danbooru
+     * Get random image from Danbooru/Safebooru
      * Uses tag: kei_(new_body)_(blue_archive)
+     * @param string $provider 'danbooru' or 'safebooru'
      */
-    public function getRandomImage($keywords = null)
+    public function getRandomImage($provider = 'safebooru')
     {
+        $baseUrl = $this->providers[$provider] ?? $this->providers['safebooru'];
+        
         // Always use Kei tag regardless of keywords
         $tag = 'kei_(new_body)_(blue_archive)';
         
-        // Get random post with Kei tag
-        // Note: Danbooru uses order:random, not random=true
-        $url = "{$this->baseUrl}/posts.json?" . http_build_query([
-            'tags' => $tag . ' rating:safe order:random',
+        // Build query tags
+        // order:random is standard for Danbooru-based boorus
+        $tags = "$tag order:random";
+        
+        if ($provider === 'safebooru') {
+            $tags .= ' rating:general'; // Safebooru is mostly safe, but explicit rating tag helps
+        } else {
+            // For Danbooru (NSFW), we might want explicitly questionable or explicit, 
+            // or just let it be random (which includes NSFW).
+            // User requested /imgnsfw -> Danbooru. 
+            // We won't restrict rating for Danbooru to allow NSFW.
+        }
+        
+        $url = "{$baseUrl}/posts.json?" . http_build_query([
+            'tags' => $tags,
             'limit' => 1,
         ]);
         
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'KeiBot/1.0 (Facebook Page Bot)');
+        curl_setopt($ch, CURLOPT_USERAGENT, 'KeiBot/1.0 (Telegram Bot)');
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json']);
         
         $response = curl_exec($ch);
@@ -48,21 +65,21 @@ class ImageService
         
         $post = $data[0];
         
-        // Return the image URL (prefer large_file_url, fallback to file_url)
         return $post['large_file_url'] ?? $post['file_url'] ?? null;
     }
     
     /**
-     * Get specific post by ID from Danbooru
+     * Get specific post by ID
      */
-    public function getPostById($postId)
+    public function getPostById($postId, $provider = 'safebooru')
     {
-        $url = "{$this->baseUrl}/posts/{$postId}.json";
+        $baseUrl = $this->providers[$provider] ?? $this->providers['safebooru'];
+        $url = "{$baseUrl}/posts/{$postId}.json";
         
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'KeiBot/1.0 (Facebook Page Bot)');
+        curl_setopt($ch, CURLOPT_USERAGENT, 'KeiBot/1.0 (Telegram Bot)');
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json']);
         
         $response = curl_exec($ch);

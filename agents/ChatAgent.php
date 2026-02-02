@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../services/TelegramAPI.php';
 require_once __DIR__ . '/../services/GroqAPI.php';
+require_once __DIR__ . '/../services/ImageService.php';
 require_once __DIR__ . '/../utils/MemoryManager.php';
 require_once __DIR__ . '/../utils/Logger.php';
 
@@ -10,6 +11,7 @@ class ChatAgent
     private $config;
     private $telegramApi;
     private $groqApi;
+    private $imageService;
     private $memory;
     private $logger;
     
@@ -20,6 +22,7 @@ class ChatAgent
         $this->config = $config;
         $this->telegramApi = new TelegramAPI($config);
         $this->groqApi = new GroqAPI($config);
+        $this->imageService = new ImageService($config);
         $this->memory = new MemoryManager($config);
         $this->logger = new Logger($config['paths']['logs']);
         
@@ -188,8 +191,32 @@ class ChatAgent
                 
             case '/help':
             case '/bantuan':
-                $helpText = "Perintah:\n/mulai - Reset percakapan\n/hapus - Hapus memori\n/bantuan - Info ini";
+                $helpText = "Perintah:\n/mulai - Reset percakapan\n/hapus - Hapus memori\n/imgsfw - Gambar SFW Kei\n/imgnsfw - Gambar *uhuk* Kei\n/bantuan - Info ini";
                 $this->telegramApi->sendMessage($chatId, $helpText);
+                break;
+                
+            case '/imgsfw':
+                $this->telegramApi->sendTyping($chatId);
+                $imageUrl = $this->imageService->getRandomImage('safebooru');
+                
+                if ($imageUrl) {
+                    $caption = "i... ini gambar diriku";
+                    $this->telegramApi->sendPhoto($chatId, $imageUrl, $caption);
+                } else {
+                    $this->telegramApi->sendMessage($chatId, "Gagal mengambil gambar... Maaf ya.");
+                }
+                break;
+                
+            case '/imgnsfw':
+                $this->telegramApi->sendTyping($chatId);
+                $imageUrl = $this->imageService->getRandomImage('danbooru');
+                
+                if ($imageUrl) {
+                    $caption = "A... anu... i... ini (malu-malu memberikan gambarnya kepadamu)";
+                    $this->telegramApi->sendPhoto($chatId, $imageUrl, $caption);
+                } else {
+                    $this->telegramApi->sendMessage($chatId, "Gagal mengambil gambar... Mungkin koneksinya error.");
+                }
                 break;
                 
             default:

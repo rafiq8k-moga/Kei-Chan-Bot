@@ -24,6 +24,21 @@ class TelegramAPI
         
         return $this->request('sendMessage', $data);
     }
+
+    /**
+     * Send photo to user
+     */
+    public function sendPhoto($chatId, $photo, $caption = null, $params = [])
+    {
+        $data = array_merge([
+            'chat_id' => $chatId,
+            'photo' => $photo,
+            'caption' => $caption,
+            'parse_mode' => 'Markdown',
+        ], $params);
+        
+        return $this->request('sendPhoto', $data);
+    }
     
     /**
      * Send typing indicator (chat_action)
