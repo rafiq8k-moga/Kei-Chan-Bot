@@ -41,12 +41,22 @@ if (isset($update['message'])) {
         exit;
     }
     
+    $normalizedText = strtolower(trim($text));
+    $commandAliases = [
+        'imgsfw',
+        'imagesfw',
+        'imgnsfw',
+        'imagensfw',
+    ];
+
     // Check for commands
     if (strpos($text, '/') === 0) {
         // Extract command (e.g., "/start param" -> "/start")
         $parts = explode(' ', $text);
         $command = $parts[0];
         $chatAgent->handleCommand($chatId, $command);
+    } elseif (in_array($normalizedText, $commandAliases, true)) {
+        $chatAgent->handleCommand($chatId, $normalizedText);
     } else {
         // Regular chat
         $chatAgent->handleMessage($chatId, $text);
