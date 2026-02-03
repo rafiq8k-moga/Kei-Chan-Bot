@@ -51,6 +51,14 @@ class ChatAgent
             
             // Show typing response
             $this->telegramApi->sendTyping($chatId);
+
+            if ($this->isImageRequest($message)) {
+                $this->telegramApi->sendMessage(
+                    $chatId,
+                    "Kalau mau minta gambar, pakai perintah:\n/imgsfw untuk gambar SFW\n/imgnsfw untuk gambar *uhuk*"
+                );
+                return true;
+            }
             
             // 1. Load Memory
             $this->memory->load($chatId);
@@ -169,8 +177,13 @@ class ChatAgent
     public function handleCommand($chatId, $command)
     {
         $this->memory->load($chatId);
-        
-        switch (strtolower(trim($command))) {
+
+        $normalizedCommand = strtolower(trim($command));
+        if (strpos($normalizedCommand, '/') !== 0) {
+            $normalizedCommand = '/' . $normalizedCommand;
+        }
+
+        switch ($normalizedCommand) {
             case '/start':
             case '/mulai':
                 $this->memory->clear($chatId);
@@ -196,6 +209,7 @@ class ChatAgent
                 break;
                 
             case '/imgsfw':
+            case '/imagesfw':
                 $this->telegramApi->sendTyping($chatId);
                 $imageUrl = $this->imageService->getRandomImage('safebooru');
                 
@@ -208,6 +222,7 @@ class ChatAgent
                 break;
                 
             case '/imgnsfw':
+            case '/imagensfw':
                 $this->telegramApi->sendTyping($chatId);
                 $imageUrl = $this->imageService->getRandomImage('danbooru');
                 
@@ -224,5 +239,11 @@ class ChatAgent
         }
         
         return true;
+    }
+
+    private function isImageRequest($message)
+    {
+        $pattern = '/\b(gambar|image|foto|pic|generate|buatkan|buat|danbooru|safebooru|booru)\b/i';
+        return preg_match($pattern, $message) === 1;
     }
 }
