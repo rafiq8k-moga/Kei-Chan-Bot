@@ -46,7 +46,7 @@ class ChatAgent
         try {
             $this->logger->info("Received message", [
                 'chat_id' => $chatId,
-                'message' => $message,
+                'length' => strlen($message), // Log length only
             ]);
             
             // Show typing response
@@ -97,7 +97,7 @@ class ChatAgent
             // 3. Call Groq
             $response = $this->groqApi->chat($messages);
             
-            $this->logger->info("Groq response", ['response' => $response]);
+            $this->logger->info("Groq response generated", ['length' => strlen($response)]);
             
             // 4. Update Memory on Success
             $this->memory->addRecentMessage('user', $message);

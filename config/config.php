@@ -5,6 +5,7 @@ return [
         'name' => 'Kei Bot',
         'timezone' => 'Asia/Jakarta',
         'debug' => true,
+        'encryption_key' => getenv('APP_KEY') ?: 'base64:default_insecure_key_change_me_1234567890abcdef',
     ],
     
     'paths' => [

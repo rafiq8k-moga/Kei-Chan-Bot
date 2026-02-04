@@ -25,7 +25,32 @@ sleep(2);
 $memFile = $config['paths']['memory'] . 'user_' . $testChatId . '.json';
 if (file_exists($memFile)) {
     echo "✅ Memory file created.\n";
-    $data = json_decode(file_get_contents($memFile), true);
+    
+    // 1. Verify Encryption (Raw file should NOT be valid JSON or should be the base64 format)
+    $rawContent = file_get_contents($memFile);
+    $decodedRaw = json_decode($rawContent, true);
+    
+    // valid encrypted data is NOT a json array with 'user_id' etc at root usually, 
+    // unless the encrypted string happens to be valid json (unlikely).
+    // Our encryption format is base64 string. json_decode("base64...") returns string or null.
+    // If it was plain json, it would return array.
+    if (is_array($decodedRaw) && isset($decodedRaw['user_id'])) {
+         echo "❌ Memory file is NOT encrypted! (Found plain JSON)\n";
+    } else {
+         echo "✅ Memory file appears encrypted (Raw content is not plain user JSON).\n";
+    }
+
+    // 2. Verify Decryption via MemoryManager
+    // We need to reload to test decryption
+    $memManager2 = new MemoryManager($config);
+    $data = $memManager2->load($testChatId);
+    
+    if ($data['user_id'] == $testChatId) {
+        echo "✅ Decryption successful. User ID matches.\n";
+    } else {
+        echo "❌ Decryption FAILED.\n";
+    }
+    
     echo "Counter: " . ($data['counter'] ?? 'N/A') . "\n";
     echo "Recent Messages: " . count($data['recent_messages']) . "\n";
 } else {
@@ -33,32 +58,19 @@ if (file_exists($memFile)) {
     exit(1);
 }
 
-// 3. Send 9 more messages to trigger summary (Total 11 interactions? No, initial command cleared it. 
-// handleMessage increments counter. 
-// We sent 1 message (User) -> +1 counter? 
-// Wait, handleMessage usually adds User + Assistant. 
-// Let's check MemoryManager.
-// handleMessage: 
-//   addRecentMessage(user)
-//   addRecentMessage(assistant)
-//   incrementCounter() -> This increments ONCE per turn. 
-// So 1 turn = 1 counter increment.
-// Logic: if ($counter > 0 && $counter % 10 == 0) summarize.
-
+// 3. Send 9 more messages to trigger summary
 echo "\n[3] Sending 9 more messages to trigger summarization...\n";
 for ($i = 2; $i <= 10; $i++) {
     echo "Sending message $i...\n";
     $agent->handleMessage($testChatId, "Laporan ke-$i: Semuanya aman.");
-    // fast sleep to avoid rate limits if any, though Groq is fast
-    // With 6000 TPM and ~1.5k tokens per request, we can do ~4 requests/min.
-    // Sleep 15s to be safe.
-    echo "Sleeping 15s to avoid Rate Limit...\n";
-    sleep(15); 
+    // fast sleep to avoid rate limits
+    // sleep(1); 
 }
 
 // 4. Verify Summary after 10th message
 echo "\n[4] Verifying Summary generation...\n";
-$data = json_decode(file_get_contents($memFile), true);
+// Reload again to get latest
+$data = $memManager2->load($testChatId);
 
 echo "Final Counter: " . $data['counter'] . "\n";
 echo "Recent Messages Count: " . count($data['recent_messages']) . "\n";
@@ -67,6 +79,7 @@ if (!empty($data['summary'])) {
     echo "✅ Summary exists: " . json_encode($data['summary']) . "\n";
 } else {
     echo "❌ Summary MISSING (Should have generated at counter 10)\n";
+    // It might fail if Groq isn't reachable or quota.
 }
 
 if (count($data['recent_messages']) <= 4) {

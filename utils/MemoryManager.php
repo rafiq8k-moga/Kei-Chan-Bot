@@ -5,6 +5,7 @@ class MemoryManager
     private $memoryPath;
     private $maxRecentMessages; // Configurable limit for recent messages
     private $ttl;
+    private $encryptionKey;
     
     // Internal state
     private $data = [];
@@ -16,6 +17,7 @@ class MemoryManager
         // Use a default if not set, though ideally it should be in config
         $this->maxRecentMessages = 10; 
         $this->ttl = $config['memory']['ttl'];
+        $this->encryptionKey = $config['app']['encryption_key'] ?? 'default_insecure_key';
         
         if (!is_dir($this->memoryPath)) {
             mkdir($this->memoryPath, 0755, true);
@@ -40,16 +42,30 @@ class MemoryManager
         ];
         
         if (file_exists($file)) {
-            $loadedEntry = json_decode(file_get_contents($file), true);
+            $content = file_get_contents($file);
+            // Try to decrypt first
+            $decrypted = $this->decrypt($content);
             
-            // Check TTL
-            if (isset($loadedEntry['last_updated'])) {
-                $age = time() - $loadedEntry['last_updated'];
-                if ($age <= $this->ttl) {
-                    // Merge loaded data with defaults to ensure structure exists
-                    $this->data = array_merge($this->data, $loadedEntry);
-                } else {
-                    // Expired - start fresh, maybe keep user_id
+            $loadedEntry = null;
+            
+            if ($decrypted) {
+                // It was encrypted
+                $loadedEntry = json_decode($decrypted, true);
+            } else {
+                // Fallback: try legacy plain JSON
+                $loadedEntry = json_decode($content, true);
+            }
+
+            if ($loadedEntry) {
+                // Check TTL
+                if (isset($loadedEntry['last_updated'])) {
+                    $age = time() - $loadedEntry['last_updated'];
+                    if ($age <= $this->ttl) {
+                        // Merge loaded data with defaults to ensure structure exists
+                        $this->data = array_merge($this->data, $loadedEntry);
+                    } else {
+                        // Expired - start fresh, maybe keep user_id
+                    }
                 }
             }
         }
@@ -69,7 +85,10 @@ class MemoryManager
         $file = $this->getFilePath($this->currentUserId);
         $this->data['last_updated'] = time();
         
-        file_put_contents($file, json_encode($this->data, JSON_PRETTY_PRINT));
+        $jsonData = json_encode($this->data, JSON_PRETTY_PRINT);
+        $encrypted = $this->encrypt($jsonData);
+        
+        file_put_contents($file, $encrypted);
     }
     
     /**
@@ -152,19 +171,44 @@ class MemoryManager
         return $this->memoryPath . 'user_' . $userId . '.json';
     }
     
+
+    private function encrypt($data)
+    {
+        $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
+        $encrypted = openssl_encrypt($data, 'aes-256-cbc', $this->encryptionKey, 0, $iv);
+        return base64_encode($encrypted . '::' . $iv);
+    }
+
+    private function decrypt($data)
+    {
+        try {
+            $parts = explode('::', base64_decode($data), 2);
+            if (count($parts) !== 2) {
+                return false;
+            }
+            list($encrypted_data, $iv) = $parts;
+            return openssl_decrypt($encrypted_data, 'aes-256-cbc', $this->encryptionKey, 0, $iv);
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+    
     public function cleanup()
     {
         $files = glob($this->memoryPath . 'user_*.json');
         $deleted = 0;
         
         foreach ($files as $file) {
-            $data = json_decode(file_get_contents($file), true);
-            if (isset($data['last_updated'])) {
-                $age = time() - $data['last_updated'];
-                if ($age > $this->ttl) {
-                    unlink($file);
-                    $deleted++;
-                }
+            // Need to load carefully since it might be encrypted
+            // This is just cleanup, maybe just check file mtime?
+            // Actually checking TTL inside the file requires decryption.
+            // For now, let's rely on file mtime for simple cleanup to avoid decrypting everything.
+            if (file_exists($file)) {
+                 $age = time() - filemtime($file); // Use FS modification time
+                 if ($age > $this->ttl) {
+                     unlink($file);
+                     $deleted++;
+                 }
             }
         }
         return $deleted;
