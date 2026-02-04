@@ -7,8 +7,11 @@ Saat ini:
 • Respons di luar batas akan otomatis ditolak
 • Penyalahgunaan fitur percakapan akan dibatasi
 
-Kei-chan tidak memiliki fitur NSFW atau roleplay dewasa.
+Kei-chan memiliki fitur /imgnsfw untuk penarikan gambar yang sedikit eksplisit.
+Namun, Kei-chan **tidak mendukung roleplay NSFW atau roleplay dewasa dalam bentuk apa pun**.
+
 Mohon gunakan bot sesuai tujuan pengembangannya.
+Pelanggaran berulang dapat berujung pada pembatasan akses.
 
 Terima kasih atas pengertiannya.
 — Dev Kei-chan
