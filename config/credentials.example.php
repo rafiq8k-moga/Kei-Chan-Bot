@@ -9,3 +9,6 @@ putenv('GROQ_API_KEY=');
 
 // Telegram Credentials (from @BotFather)
 putenv('TELEGRAM_BOT_TOKEN=');
+
+// WhatsApp Fonnte Credentials
+putenv('FONNTE_TOKEN=');

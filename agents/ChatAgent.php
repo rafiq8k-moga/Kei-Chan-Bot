@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../services/TelegramAPI.php';
+require_once __DIR__ . '/../services/WhatsAppAPI.php';
 require_once __DIR__ . '/../services/GroqAPI.php';
 require_once __DIR__ . '/../services/ImageService.php';
 require_once __DIR__ . '/../utils/MemoryManager.php';
@@ -9,7 +10,9 @@ require_once __DIR__ . '/../utils/Logger.php';
 class ChatAgent
 {
     private $config;
+    private $platform;
     private $telegramApi;
+    private $whatsappApi;
     private $groqApi;
     private $imageService;
     private $memory;
@@ -17,10 +20,12 @@ class ChatAgent
     
     private $systemPrompt;
     
-    public function __construct($config)
+    public function __construct($config, $platform = 'telegram')
     {
         $this->config = $config;
+        $this->platform = $platform;
         $this->telegramApi = new TelegramAPI($config);
+        $this->whatsappApi = new WhatsAppAPI($config);
         $this->groqApi = new GroqAPI($config);
         $this->imageService = new ImageService($config);
         $this->memory = new MemoryManager($config);
@@ -50,10 +55,10 @@ class ChatAgent
             ]);
             
             // Show typing response
-            $this->telegramApi->sendTyping($chatId);
+            $this->sendTyping($chatId);
 
             if ($this->isImageRequest($message)) {
-                $this->telegramApi->sendMessage(
+                $this->sendReply(
                     $chatId,
                     "Kalau mau minta gambar, pakai perintah:\n/imgsfw untuk gambar SFW\n/imgnsfw untuk gambar *uhuk*"
                 );
@@ -119,7 +124,7 @@ class ChatAgent
             $this->memory->save();
             
             // 7. Send Response
-            $this->telegramApi->sendMessage($chatId, $response);
+            $this->sendReply($chatId, $response);
             
             return true;
             
@@ -127,7 +132,7 @@ class ChatAgent
             $this->logger->error("Chat handling failed: " . $e->getMessage());
             $this->logger->error($e->getTraceAsString());
             
-            $this->telegramApi->sendMessage(
+            $this->sendReply(
                 $chatId, 
                 "Hmph, sirkuit logikaku error. Bukan salahku ya! Coba lagi nanti."
             );
@@ -187,7 +192,7 @@ class ChatAgent
             case '/start':
             case '/mulai':
                 $this->memory->clear($chatId);
-                $this->telegramApi->sendMessage(
+                $this->sendReply(
                     $chatId,
                     "Hah? Mulai dari awal? ...Baiklah. Aku Kei, Guardian of the Nameless Priest. Ada yang bisa kubantu? (Bot Otomatis)"
                 );
@@ -196,7 +201,7 @@ class ChatAgent
             case '/reset':
             case '/hapus':
                 $this->memory->clear($chatId);
-                $this->telegramApi->sendMessage(
+                $this->sendReply(
                     $chatId,
                     "Hmph, memori dihapus. Jangan lupa berterima kasih!"
                 );
@@ -205,32 +210,32 @@ class ChatAgent
             case '/help':
             case '/bantuan':
                 $helpText = "Perintah:\n/mulai - Reset percakapan\n/hapus - Hapus memori\n/imgsfw - Gambar SFW Kei\n/imgnsfw - Gambar *uhuk* Kei\n/bantuan - Info ini";
-                $this->telegramApi->sendMessage($chatId, $helpText);
+                $this->sendReply($chatId, $helpText);
                 break;
                 
             case '/imgsfw':
             case '/imagesfw':
-                $this->telegramApi->sendTyping($chatId);
+                $this->sendTyping($chatId);
                 $imageUrl = $this->imageService->getRandomImage('safebooru');
                 
                 if ($imageUrl) {
                     $caption = "i... ini gambar diriku\ndan juga... pemilik penghubung ini bilang ia tidak akan bertanggung jawab atas gambar yang kuberikan, kumohon pakai secara bijak";
-                    $this->telegramApi->sendPhoto($chatId, $imageUrl, $caption);
+                    $this->sendReplyPhoto($chatId, $imageUrl, $caption);
                 } else {
-                    $this->telegramApi->sendMessage($chatId, "Gagal mengambil gambar... Maaf ya.");
+                    $this->sendReply($chatId, "Gagal mengambil gambar... Maaf ya.");
                 }
                 break;
                 
             case '/imgnsfw':
             case '/imagensfw':
-                $this->telegramApi->sendTyping($chatId);
+                $this->sendTyping($chatId);
                 $imageUrl = $this->imageService->getRandomImage('danbooru');
                 
                 if ($imageUrl) {
                     $caption = "A... anu... i... ini (malu-malu memberikan gambarnya kepadamu)\ndan juga... pemilik penghubung ini bilang ia tidak akan bertanggung jawab atas gambar yang kuberikan, kumohon pakai secara bijak";
-                    $this->telegramApi->sendPhoto($chatId, $imageUrl, $caption);
+                    $this->sendReplyPhoto($chatId, $imageUrl, $caption);
                 } else {
-                    $this->telegramApi->sendMessage($chatId, "Gagal mengambil gambar... Mungkin koneksinya error.");
+                    $this->sendReply($chatId, "Gagal mengambil gambar... Mungkin koneksinya error.");
                 }
                 break;
                 
@@ -245,5 +250,36 @@ class ChatAgent
     {
         $pattern = '/\b(gambar|image|foto|pic|generate|buatkan|buat|danbooru|safebooru|booru)\b/i';
         return preg_match($pattern, $message) === 1;
+    }
+
+    // --- Output Platform Routing ---
+
+    private function sendReply($chatId, $text)
+    {
+        if ($this->platform === 'whatsapp') {
+            return $this->whatsappApi->sendMessage($chatId, $text);
+        } else {
+            return $this->telegramApi->sendMessage($chatId, $text);
+        }
+    }
+
+    private function sendReplyPhoto($chatId, $url, $caption)
+    {
+        if ($this->platform === 'whatsapp') {
+            return $this->whatsappApi->sendPhoto($chatId, $url, $caption);
+        } else {
+            return $this->telegramApi->sendPhoto($chatId, $url, $caption);
+        }
+    }
+
+    private function sendTyping($chatId)
+    {
+        if ($this->platform === 'whatsapp') {
+            // Typing indicator might not be needed for webhook format or not fully supported by Fonnte,
+            // but we can abstract it.
+            return true; 
+        } else {
+            return $this->telegramApi->sendTyping($chatId);
+        }
     }
 }

@@ -25,6 +25,10 @@ return [
         'bot_token' => getenv('TELEGRAM_BOT_TOKEN'),
     ],
     
+    'whatsapp' => [
+        'fonnte_token' => getenv('FONNTE_TOKEN'),
+    ],
+    
     'groq' => [
         'api_key' => getenv('GROQ_API_KEY'),
         'model' => 'llama-3.1-8b-instant',
