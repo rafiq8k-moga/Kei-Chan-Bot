@@ -31,8 +31,8 @@ return [
     
     'groq' => [
         'api_key' => getenv('GROQ_API_KEY'),
-        'model' => 'llama-3.1-8b-instant',
-        'max_tokens' => 1024,
+        'model' => 'openai/gpt-oss-20b',
+        'max_tokens' => 300,
         'temperature' => 0.7,
     ],
     
