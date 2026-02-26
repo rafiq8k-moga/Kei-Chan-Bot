@@ -28,11 +28,34 @@ if (!$data) {
 
 $logger->info("WhatsApp Fonnte Update", ['sender' => $data['sender'] ?? 'unknown']);
 
-// Fonnte Webhook Data
+// Fonnte Webhook Data - Complete parameters from docs
 $device = $data['device'] ?? '';
 $sender = $data['sender'] ?? '';
 $message = $data['message'] ?? '';
+$text = $data['text'] ?? ''; // button text
+$member = $data['member'] ?? ''; // group member who send the message
 $name = $data['name'] ?? '';
+$location = $data['location'] ?? '';
+$pollname = $data['pollname'] ?? '';
+$choices = $data['choices'] ?? '';
+$timestamp = $data['timestamp'] ?? '';
+$inboxid = $data['inboxid'] ?? '';
+
+// Data below will only be received by device with all feature package
+$url = $data['url'] ?? '';
+$filename = $data['filename'] ?? '';
+$extension = $data['extension'] ?? '';
+
+// Log complete webhook data for debugging
+$logger->info("WhatsApp Fonnte Webhook", [
+    'device' => $device,
+    'sender' => $sender,
+    'message' => $message,
+    'name' => $name,
+    'timestamp' => $timestamp,
+    'has_attachment' => !empty($url),
+    'is_group' => !empty($member)
+]);
 
 // Ignore empty messages or messages not from a sender
 if (empty($message) || empty($sender)) {
