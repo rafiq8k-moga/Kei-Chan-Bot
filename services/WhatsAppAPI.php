@@ -5,11 +5,16 @@ class WhatsAppAPI
     private $config;
     private $token;
     private $baseUrl = 'https://api.fonnte.com';
+    private $logger;
     
     public function __construct($config)
     {
         $this->config = $config;
         $this->token = $config['whatsapp']['fonnte_token'];
+        
+        // Initialize logger
+        require_once __DIR__ . '/../utils/Logger.php';
+        $this->logger = new Logger($config['paths']['logs']);
     }
     
     /**
@@ -22,7 +27,21 @@ class WhatsAppAPI
             'message' => $text,
         ], $params);
         
-        return $this->request('/send', $data);
+        $this->logger->info("WhatsApp API Send Message", [
+            'target' => $target,
+            'message_length' => strlen($text),
+            'data' => $data
+        ]);
+        
+        $result = $this->request('/send', $data);
+        
+        $this->logger->info("WhatsApp API Response", [
+            'target' => $target,
+            'result' => $result,
+            'success' => ($result['status'] ?? false) === true
+        ]);
+        
+        return $result;
     }
 
     /**
@@ -46,6 +65,13 @@ class WhatsAppAPI
     {
         $url = $this->baseUrl . $endpoint;
         
+        $this->logger->info("Fonnte API Request", [
+            'url' => $url,
+            'endpoint' => $endpoint,
+            'data' => $data,
+            'token_length' => strlen($this->token)
+        ]);
+        
         $ch = curl_init();
         curl_setopt_array($ch, array(
             CURLOPT_URL => $url,
@@ -65,11 +91,24 @@ class WhatsAppAPI
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
         
         $result = json_decode($response, true);
         
+        $this->logger->info("Fonnte API Raw Response", [
+            'http_code' => $httpCode,
+            'curl_error' => $curlError,
+            'response' => $response,
+            'decoded_result' => $result
+        ]);
+        
         if ($httpCode >= 400 || ($result['status'] ?? false) === false) {
+            $this->logger->error("Fonnte API Error", [
+                'http_code' => $httpCode,
+                'result' => $result,
+                'curl_error' => $curlError
+            ]);
             return $result;
         }
         
